@@ -35,9 +35,19 @@ def add_post():
         return jsonify({
             "error": "Missing required fields",
             "missing": missing_fields,
-            "message": "Please provide non-empty 'title' and/or 'content'."}), 400
+            "message": "Please provide non-empty 'title' and/or 'content'."
+        }), 400
 
-    new_id = max(post["id"] for post in POSTS) + 1 if POSTS else 1
+    # Generate new id without list comprehension
+    if POSTS:
+        max_id = 0
+        for post in POSTS:
+            if post["id"] > max_id:
+                max_id = post["id"]
+        new_id = max_id + 1
+    else:
+        new_id = 1
+
     new_post = {"id": new_id, "title": title.strip(), "content": content.strip()}
     POSTS.append(new_post)
     return jsonify(new_post), 201
@@ -45,7 +55,12 @@ def add_post():
 
 @app.route('/api/posts/<int:id>', methods=['DELETE'])
 def delete_post(id):
-    post = next((post for post in POSTS if post["id"] == id), None)
+    post = None
+    for p in POSTS:
+        if p["id"] == id:
+            post = p
+            break
+
     if not post:
         return jsonify({"error": "Post not found"}), 404
 
@@ -53,24 +68,45 @@ def delete_post(id):
     return jsonify({"message": f"Post with id {id} has been deleted."}), 200
 
 
-# Update post by id
 @app.route('/api/posts/<int:id>', methods=['PUT'])
 def update_post(id):
     # Find post by id
-    post = next((post for post in POSTS if post["id"] == id), None)
+    post = None
+    for p in POSTS:
+        if p["id"] == id:
+            post = p
+            break
 
-    # If post not found → 404
     if not post:
         return jsonify({"error": "Post not found"}), 404
 
-    # Get JSON data from request
     data = request.get_json() or {}
 
-    # Update title and content
-    post["title"] = data.get("title", post["title"])
-    post["content"] = data.get("content", post["content"])
+    if "title" in data and data["title"].strip() != "":
+        post["title"] = data["title"].strip()
+    if "content" in data and data["content"].strip() != "":
+        post["content"] = data["content"].strip()
 
     return jsonify(post), 200
+
+
+@app.route('/api/posts/search', methods=['GET'])
+def search_posts():
+    title_query = request.args.get("title", "").lower()
+    content_query = request.args.get("content", "").lower()
+
+    results = []
+
+    for post in POSTS:
+        match = False
+        if title_query and title_query in post["title"].lower():
+            match = True
+        if content_query and content_query in post["content"].lower():
+            match = True
+        if match:
+            results.append(post)
+
+    return jsonify(results)
 
 
 if __name__ == '__main__':
